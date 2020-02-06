@@ -1,34 +1,28 @@
 import random
 from typing import List, Any
 
-# import xlwings
 import numpy as np
 import xlrd
+import xlwings as xw
 from tabulate import tabulate
 
-
-# a
 
 # scheinbar erledigt??
 # TODO Toni Zimmermann  119  129  130  121   499  2  0  1  2   497  121  139  123  114  Hagen Unger warum verliert Toni MP???
 
-# TODO Kader werden aktuell nach Saisonende zurückgesetzt
-# TODO ersten Spieler im Array transferieren können
-# TODO Spielerwechsel geht nicht aber keine Fehlermeldung
-
-
-# TODO Alter/Stärkeänderung
+# TODO Saisoncounter, jede Saison neues Tabellenblatt mit Rostern und Tabellen
+# TODO Alter/Stärkeänderung, Neugeneration Spieler, Normalverteilung nach Alter????
 # TODO Ergebnisse als GUI mit farblichen Ergebnissen (Excel für anfang??)Spieltagsbericht als Excel exportieren, neue Tabelle für jeden Spieltag
-# TODO Spieler und Stärken in Excel exportieren ("Speichern und LAden")
 # TODO GUI Doppelklick auf Spieler mit Graph von Ergebnissen
 # TODO Statistik Ergebnisse
-# TODO Promotion / relegation (als erstes noch über manuelle Eingabe / später automatisch)
+# TODO mehrere Klassen Promotion / relegation (als erstes noch über manuelle Eingabe / später automatisch)
 # TODO langsamer Anzeigemodus / Bahn für Bahn / Starter für Starter
 # TODO Team managen und Austellung bestimmen
 # TODO Bahnrekorde
 # TODO Heimbahn Wählitz zb besser als Teuchern
 # TODO Pokal
 # TODO Geld für Transfers
+# TODO Neurales Netzwerk lernt wass es machen muss um erster in Tabelle zu werden, vorher umstellen Spielerwechsel über Name zu Spielerwechsel nach i???
 
 
 class Liga:
@@ -41,15 +35,27 @@ class Liga:
         self.Spielplan = []
         spieltag_nr = 1
 
+        # aus data zu Objekten
         for i in range(0, sheet.nrows, 8):
             spieler = []
             if liganame == data[i][0]:
                 for j in range(0, 8, 1):
                     spieler.append([data[i + j][3], data[i + j][4]])
-                team_a = Verein(data[i][1], data[i][2], 0, spieler, 0, 0, 0, 0, 0, 0)
+                team_a = Verein(data[i][1], data[i][2], spieler, 0, 0, 0, 0, 0, 0)
                 self.Ligaa.append(team_a)
         spielplan = self.spielplanGenerator(anzahl)
         self.menu(spielplan, spieltag_nr)
+
+        # aus Objekten zu Excel
+        wb = xw.Book("Input.xlsx")
+        sht = xw.sheets("Tabelle1")
+        print("Moment,speichern.....")
+        for i in range(0, len(self.Ligaa) * 8, 8):
+            sht.range((i + 1, 1)).value = self.Liganame
+            sht.range((i + 1, 2)).value = self.Ligaa[int(i / 8)].Name
+            for j in range(0, 8, 1):
+                sht.range((i + j + 1, 4)).value = self.Ligaa[int(i / 8)].Spieler[j]
+        wb.save()  # speichern, da sonst Änderungen nicht geladen werden
 
     def menu(self, spielplan, spieltag_nr):
         while 1:
@@ -59,7 +65,7 @@ class Liga:
             print("4 = Tabelle")
             print("5 = Spieltag")
             print("6 = Spielerwechsel")
-            print("0 = Saison beenden")
+            print("0 = Saison beenden und Teams speichern")
             print("")
             inp: str = input()
             if inp == "1":
@@ -113,7 +119,7 @@ class Liga:
         print("Welcher Verein?")
         inp = input()
         for Verein in self.Ligaa:
-            if (Verein.Name == inp):
+            if Verein.Name == inp:
                 print(Verein.Name)
                 print(Verein.Stärke)
                 print(Verein.Punkte)
@@ -152,7 +158,7 @@ class Liga:
 
         print("Spieler 1:")
         Sp1 = input()
-        i1 = 0
+        i1 = -1
         j1 = 0
         # Position im Array Spieler 1 finden
         for i in range(0, len(self.Ligaa), 1):
@@ -161,13 +167,13 @@ class Liga:
                     i1 = i
                     j1 = j
                     break
-        if (i1 == 0 and j1 == 0):
+        if (i1 == -1 and j1 == 0):
             print("Spieler nicht gefunden")
             return 0
 
         print("Spieler 2:")
         Sp2 = input()
-        i2 = 0
+        i2 = -1
         j2 = 0
         # Position im Array Spieler 1 finden
         for i in range(0, len(self.Ligaa), 1):
@@ -176,7 +182,7 @@ class Liga:
                     i2 = i
                     j2 = j
                     break
-        if (i2 == 0 and j2 == 0):
+        if (i2 == -1 and j2 == 0):
             print("Spieler nicht gefunden")
             return 0
 
@@ -187,143 +193,139 @@ class Liga:
 
 
 class Verein:
-    def __init__(self, Name, stärke, punkte, Spieler, MP, SP, Schnitt, S, U, N):
-        self.Name = Name
+    def __init__(self, name, stärke, spieler, mp, sp, schnitt, s, u, n):
+        self.Name = name
         self.Stärke = stärke
         self.Punkte = 0
-        self.Spieler = Spieler
-        self.MP = MP
-        self.SP = SP
-        self.Schnitt = Schnitt
-        self.S = S
-        self.U = U
-        self.N = N
+        self.Spieler = spieler
+        self.MP = mp
+        self.SP = sp
+        self.Schnitt = schnitt
+        self.S = s
+        self.U = u
+        self.N = n
 
-    def sieg(self, MP, SP, Schnitt):
+    def sieg(self, mp, sp, schnitt):
         self.Punkte = self.Punkte + 3
-        self.MP = self.MP + MP
-        self.SP = self.SP + SP
-        self.Schnitt = self.Schnitt + Schnitt
+        self.MP = self.MP + mp
+        self.SP = self.SP + sp
+        self.Schnitt = self.Schnitt + schnitt
         self.S = self.S + 1
 
-    def unentschieden(self, mp, sp, Schnitt):
+    def unentschieden(self, mp, sp, schnitt):
         self.Punkte = self.Punkte + 1
         self.MP = self.MP + mp
         self.SP = self.SP + sp
-        self.Schnitt = self.Schnitt + Schnitt
+        self.Schnitt = self.Schnitt + schnitt
         self.U = self.U + 1
 
-    def niederlage(self, MP, SP, Schnitt):
-        self.MP = self.MP + MP
-        self.SP = self.SP + SP
-        self.Schnitt = self.Schnitt + Schnitt
+    def niederlage(self, mp, sp, schnitt):
+        self.MP = self.MP + mp
+        self.SP = self.SP + sp
+        self.Schnitt = self.Schnitt + schnitt
         self.N = self.N + 1
 
 
 class Spiel:
-    def __init__(self, TeamA, TeamB):
-        self.TeamA = TeamA
-        self.TeamB = TeamB
+    def __init__(self, team_a, team_b):
+        self.TeamA = team_a
+        self.TeamB = team_b
 
-        print(TeamA.Name + " - " + TeamB.Name)
+        print(team_a.Name + " - " + team_b.Name)
 
         # 2 zufälige Spieler nicht da
-        # TeamA
-        Ersatz: List[Any] = []
+        # team_a
+        ersatz: List[Any] = []
         rd = random.randrange(0, 8)
-        Ersatz.append(TeamA.Spieler[rd])
-        TeamA.Spieler.pop(rd)
+        ersatz.append(team_a.Spieler[rd])
+        team_a.Spieler.pop(rd)
         rd = random.randrange(0, 7)
-        Ersatz.append(TeamA.Spieler[rd])
-        TeamA.Spieler.pop(rd)
-        # TeamB
+        ersatz.append(team_a.Spieler[rd])
+        team_a.Spieler.pop(rd)
+        # team_b
         ersatz2 = []
         rd = random.randrange(0, 8)
-        ersatz2.append(TeamB.Spieler[rd])
-        TeamB.Spieler.pop(rd)
+        ersatz2.append(team_b.Spieler[rd])
+        team_b.Spieler.pop(rd)
         rd = random.randrange(0, 7)
-        ersatz2.append(TeamB.Spieler[rd])
-        TeamB.Spieler.pop(rd)
+        ersatz2.append(team_b.Spieler[rd])
+        team_b.Spieler.pop(rd)
 
-        Ergeb = [[(0) for c in range(0, 16)] for r in range(0, 7)]
+        ergeb = [[(0) for c in range(0, 16)] for r in range(0, 7)]
         for j in range(0, 6, 1):
             # Namen eintragen
-            Ergeb[j][0] = TeamA.Spieler[j][0]
-            Ergeb[j][15] = TeamB.Spieler[j][0]
+            ergeb[j][0] = team_a.Spieler[j][0]
+            ergeb[j][15] = team_b.Spieler[j][0]
             # Tagesform, beeinflusst Gesamtergebnis Spieler
-            HrandA = np.random.normal(1000, 30, 1)
-            GrandA = np.random.normal(1000, 30, 1)
+            hrand_a = np.random.normal(1000, 30, 1)
+            grand_a = np.random.normal(1000, 30, 1)
             for i in range(1, 5, 1):
-                Hrand = np.random.normal(1000, 70, 1)
-                Ergeb[j][i] = int(TeamA.Spieler[j][1] * (HrandA / 1000) * (Hrand / 1000) / 4)
+                hrand = np.random.normal(1000, 70, 1)
+                ergeb[j][i] = int(team_a.Spieler[j][1] * (hrand_a / 1000) * (hrand / 1000) / 4)
                 # Ergebnis Spieler
-                Ergeb[j][5] += Ergeb[j][i]
+                ergeb[j][5] += ergeb[j][i]
 
-                Grand = np.random.normal(1000, 70, 1)
-                Ergeb[j][i + 10] = int(TeamB.Spieler[j][1] * (GrandA / 1000) * (Grand / 1000) / 4)
+                grand = np.random.normal(1000, 70, 1)
+                ergeb[j][i + 10] = int(team_b.Spieler[j][1] * (grand_a / 1000) * (grand / 1000) / 4)
                 # Ergebnis Spieler
-                Ergeb[j][10] += Ergeb[j][i + 10]
+                ergeb[j][10] += ergeb[j][i + 10]
                 # SP Spieler
-                if Ergeb[j][i + 10] > Ergeb[j][i]:
-                    Ergeb[j][9] += 1
-                elif Ergeb[j][i + 10] == Ergeb[j][i]:
-                    Ergeb[j][9] += 0.5
+                if ergeb[j][i + 10] > ergeb[j][i]:
+                    ergeb[j][9] += 1
+                elif ergeb[j][i + 10] == ergeb[j][i]:
+                    ergeb[j][9] += 0.5
                 # MP Spieler
-                if Ergeb[j][9] > 2:
-                    Ergeb[j][8] = 1
-                elif Ergeb[j][9] == 2:
-                    if Ergeb[j][10] > Ergeb[j][5]:
-                        Ergeb[j][8] = 1
-                    elif Ergeb[j][10] == Ergeb[j][5]:
-                        Ergeb[j][8] = 0.5
+                if ergeb[j][9] > 2:
+                    ergeb[j][8] = 1
+                elif ergeb[j][9] == 2:
+                    if ergeb[j][10] > ergeb[j][5]:
+                        ergeb[j][8] = 1
+                    elif ergeb[j][10] == ergeb[j][5]:
+                        ergeb[j][8] = 0.5
 
             # Punkte Heim
             # SP Spieler
-            Ergeb[j][6] = 4 - Ergeb[j][9]
+            ergeb[j][6] = 4 - ergeb[j][9]
             # MP Spieler
-            Ergeb[j][7] = 1 - Ergeb[j][8]
+            ergeb[j][7] = 1 - ergeb[j][8]
             # Gesamtholz Mannschaft
-            Ergeb[6][5] += Ergeb[j][5]
-            Ergeb[6][10] += Ergeb[j][10]
+            ergeb[6][5] += ergeb[j][5]
+            ergeb[6][10] += ergeb[j][10]
             # MP Gesamt
-            Ergeb[6][7] += Ergeb[j][7]
-            Ergeb[6][8] += Ergeb[j][8]
+            ergeb[6][7] += ergeb[j][7]
+            ergeb[6][8] += ergeb[j][8]
             # SP Gesa,t
-            Ergeb[6][6] += Ergeb[j][6]
-            Ergeb[6][9] += Ergeb[j][9]
+            ergeb[6][6] += ergeb[j][6]
+            ergeb[6][9] += ergeb[j][9]
         # MP für Gesamtholz
-        if Ergeb[6][5] > Ergeb[6][10]:
-            Ergeb[6][7] += 2
-        elif Ergeb[6][5] == Ergeb[6][10]:
-            Ergeb[6][7] += 1
-            Ergeb[6][8] += 1
+        if ergeb[6][5] > ergeb[6][10]:
+            ergeb[6][7] += 2
+        elif ergeb[6][5] == ergeb[6][10]:
+            ergeb[6][7] += 1
+            ergeb[6][8] += 1
         else:
-            Ergeb[6][8] += 2
+            ergeb[6][8] += 2
 
-        print(tabulate(Ergeb,
+        print(tabulate(ergeb,
                        headers=["Name", "B1", "B2", "B3", "B4", "G", "SP", "MP", "MP", "SP", "G", "B1", "B2", "B3",
                                 "B4", "Name"]))
         # Tabellenpunkte
-        if Ergeb[6][7] > Ergeb[6][8]:
-            TeamA.sieg(Ergeb[6][7], Ergeb[6][6], Ergeb[6][5])
-            TeamB.niederlage(Ergeb[6][8], Ergeb[6][9], Ergeb[6][10])
-        elif Ergeb[6][7] == Ergeb[6][8]:
-            TeamA.unentschieden(Ergeb[6][7], Ergeb[6][6], Ergeb[6][5])
-            TeamB.unentschieden(Ergeb[6][8], Ergeb[6][9], Ergeb[6][10])
+        if ergeb[6][7] > ergeb[6][8]:
+            team_a.sieg(ergeb[6][7], ergeb[6][6], ergeb[6][5])
+            team_b.niederlage(ergeb[6][8], ergeb[6][9], ergeb[6][10])
+        elif ergeb[6][7] == ergeb[6][8]:
+            team_a.unentschieden(ergeb[6][7], ergeb[6][6], ergeb[6][5])
+            team_b.unentschieden(ergeb[6][8], ergeb[6][9], ergeb[6][10])
         else:
-            TeamB.sieg(Ergeb[6][8], Ergeb[6][9], Ergeb[6][10])
-            TeamA.niederlage(Ergeb[6][7], Ergeb[6][6], Ergeb[6][5])
+            team_b.sieg(ergeb[6][8], ergeb[6][9], ergeb[6][10])
+            team_a.niederlage(ergeb[6][7], ergeb[6][6], ergeb[6][5])
 
         # nicht bereite Spieler wieder anhängen
-        TeamA.Spieler.append(Ersatz[0])
-        TeamA.Spieler.append(Ersatz[1])
-        TeamB.Spieler.append(ersatz2[0])
-        TeamB.Spieler.append(ersatz2[1])
+        team_a.Spieler.append(ersatz[0])
+        team_a.Spieler.append(ersatz[1])
+        team_b.Spieler.append(ersatz2[0])
+        team_b.Spieler.append(ersatz2[1])
 
-
-book = xlrd.open_workbook('Input.xlsx')
-sheet = book.sheet_by_name('Tabelle1')
-data = [[sheet.cell_value(r, c) for c in range(sheet.ncols)] for r in range(sheet.nrows)]
 
 while 1:
     print("")
@@ -331,5 +333,8 @@ while 1:
     print("")
     inp: str = input()
     if inp == "1":
-        Anzahl = 14
+        book = xlrd.open_workbook('Input.xlsx')
+        sheet = book.sheet_by_name('Tabelle1')
+        data = [[sheet.cell_value(r, c) for c in range(sheet.ncols)] for r in range(sheet.nrows)]
+        Anzahl = 4
         Kreisoberliga = Liga(Anzahl, 1, "Kreisoberliga")
