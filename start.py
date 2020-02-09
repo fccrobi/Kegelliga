@@ -1,19 +1,23 @@
 import random
+import sys
 from typing import List, Any
 
 import numpy as np
 import xlrd
 import xlwings as xw
+from PyQt5.QtCore import pyqtSlot
+from PyQt5.QtWidgets import QApplication, QWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QHeaderView
 from tabulate import tabulate
 
 
 # scheinbar erledigt??
 # TODO Toni Zimmermann  119  129  130  121   499  2  0  1  2   497  121  139  123  114  Hagen Unger warum verliert Toni MP???
 
-# TODO Saisoncounter, jede Saison neues Tabellenblatt mit Rostern und Tabellen
-# TODO Alter/Stärkeänderung, Neugeneration Spieler, Normalverteilung nach Alter????
-# TODO Ergebnisse als GUI mit farblichen Ergebnissen (Excel für anfang??)Spieltagsbericht als Excel exportieren, neue Tabelle für jeden Spieltag
+# TODO Ergebnisse als GUI mit farblichen Ergebnissen
 # TODO GUI Doppelklick auf Spieler mit Graph von Ergebnissen
+# TODO Alter/Stärkeänderung, Neugeneration Spieler, Normalverteilung nach Alter????
+# TODO Formkurve Spieler, alle paar Woche mal schlechte Form z.B.
+# TODO Saisoncounter, jede Saison neues Tabellenblatt mit Rostern und Tabellen
 # TODO Statistik Ergebnisse
 # TODO mehrere Klassen Promotion / relegation (als erstes noch über manuelle Eingabe / später automatisch)
 # TODO langsamer Anzeigemodus / Bahn für Bahn / Starter für Starter
@@ -128,6 +132,7 @@ class Liga:
 
     # Tabelle ausgeben
     def Tabelle(self, SpieltagNr):
+
         self.Ligaa.sort(key=lambda Verein: Verein.Punkte, reverse=1)
         Kopie = []
         for Verein in self.Ligaa:
@@ -137,22 +142,44 @@ class Liga:
             except:
                 pass
         print(tabulate(Kopie, headers=["Name", "Punkte", "S", "U", "N", "MP", "SP", "Schnitt"]))
+        # Tabelle-GUI
+        app = QApplication(sys.argv)
+        Tabelle = Table(Kopie)
+        # Wichtige Zeile, damit Fenster offen bleibt, aber nach Schließung das Programm weiterläuft
+        app.exec_()
 
     def Spieltag(self, Spielplan, SpieltagNr):
+        Spieltagserg = []
         print("Spieltag Nr: " + str(SpieltagNr))
         # prüfen ob Saison vorbei ist
         if (len(Spielplan) + 1 <= SpieltagNr):
             print("Saison bereits vorbei")
             return 2
         else:
+            wb = xw.Book("Output.xlsx")
+            try:
+                wb.sheets[str(SpieltagNr)]
+            except:
+                wb.sheets.add(str(SpieltagNr))
+            zeile = 1
+
             # for Schleife für Anzahl Spiele am Spieltag
             for i in range(0, len(Spielplan[SpieltagNr - 1]), 1):
                 try:
                     Spiel2 = Spiel(self.Ligaa[Spielplan[SpieltagNr - 1][i][0] - 1],
-                                   self.Ligaa[Spielplan[SpieltagNr - 1][i][1] - 1])
+                                   self.Ligaa[Spielplan[SpieltagNr - 1][i][1] - 1], zeile, SpieltagNr)
+                    zeile += 10
+                    wb.save()
                 except:
                     print("Anzahl Teams Spielplan und Anzahl Teams Liga stimmen nicht überein")
                     return
+
+    # Tabelle-GUI
+    # app = QApplication(sys.argv)
+    # Spieltagsuebersicht = Spieltagsuebersicht(Kopie)
+    # Wichtige Zeile, damit Fenster offen bleibt, aber nach Schließung das Programm weiterläuft
+    #app.exec_()
+
 
     def Spielerwechsel(self):
 
@@ -227,9 +254,13 @@ class Verein:
 
 
 class Spiel:
-    def __init__(self, team_a, team_b):
+    def __init__(self, team_a, team_b, zeile, SpieltagNr):
         self.TeamA = team_a
         self.TeamB = team_b
+        self.zeile = zeile
+        self.SpieltagNr = SpieltagNr
+
+
 
         print(team_a.Name + " - " + team_b.Name)
 
@@ -309,6 +340,14 @@ class Spiel:
         print(tabulate(ergeb,
                        headers=["Name", "B1", "B2", "B3", "B4", "G", "SP", "MP", "MP", "SP", "G", "B1", "B2", "B3",
                                 "B4", "Name"]))
+
+        # Excel-Export
+        # TODO macht Programm langsam
+        sht = xw.sheets(str(SpieltagNr))
+        for i in range(0, len(ergeb)):
+            for j in range(0, len(ergeb[i])):
+                sht.range((i + 1 + zeile, j + 1)).value = ergeb[i][j]
+
         # Tabellenpunkte
         if ergeb[6][7] > ergeb[6][8]:
             team_a.sieg(ergeb[6][7], ergeb[6][6], ergeb[6][5])
@@ -325,6 +364,113 @@ class Spiel:
         team_a.Spieler.append(ersatz[1])
         team_b.Spieler.append(ersatz2[0])
         team_b.Spieler.append(ersatz2[1])
+
+        return ergeb
+
+
+class Table(QWidget):
+    def __init__(self, Kopie):
+        super().__init__()
+        self.Table = QWidget
+        self.left = 200
+        self.top = 200
+        self.width = 800
+        self.height = 500
+        self.Kopie = Kopie
+        self.initUI(Kopie)
+
+    def initUI(self, Kopie):
+        self.setGeometry(self.left, self.top, self.width, self.height)
+        self.title = 'Tabelle'
+        self.createTable(Kopie)
+        # Add box layout, add table to box layout and add box layout to widget
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.tableWidget)
+        self.setLayout(self.layout)
+
+        # Show widget
+        self.show()
+
+    def createTable(self, Kopie):
+        # Create table
+        self.tableWidget = QTableWidget()
+        self.setWindowTitle(self.title)
+        self.tableWidget.setRowCount(len(Kopie))
+        self.tableWidget.setColumnCount(len(Kopie[1]))
+
+        # Spaltengrößen passen sich an Platzbedarf an
+        header = self.tableWidget.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        # Spalten beschriften
+        self.tableWidget.setHorizontalHeaderLabels(["Name", "Punkte", "S", "U", "N", "MP", "SP", "Schnitt"])
+
+        # Tabelle wird beschrieben
+        for i in range(0, len(Kopie), 1):
+            for j in range(0, len(Kopie[i]), 1):
+                self.tableWidget.setItem(i, j, QTableWidgetItem(str(Kopie[i][j])))
+        self.tableWidget.doubleClicked.connect(self.on_click)
+
+    @pyqtSlot()
+    def on_click(self):
+        print("\n")
+        for currentQTableWidgetItem in self.tableWidget.selectedItems():
+            print(currentQTableWidgetItem.row(), currentQTableWidgetItem.column(), currentQTableWidgetItem.text())
+
+
+class Spieltagsuebersicht(QWidget):
+    def __init__(self, Kopie):
+        super().__init__()
+        self.Table = QWidget
+        self.left = 200
+        self.top = 200
+        self.width = 800
+        self.height = 500
+        self.Kopie = Kopie
+        self.initUI(Kopie)
+
+    def initUI(self, Kopie):
+        self.setGeometry(self.left, self.top, self.width, self.height)
+        self.title = 'Tabelle'
+        self.createTable(Kopie)
+        # Add box layout, add table to box layout and add box layout to widget
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.tableWidget)
+        self.setLayout(self.layout)
+
+        # Show widget
+        self.show()
+
+    def createTable(self, Kopie):
+        # Create table
+        self.tableWidget = QTableWidget()
+        self.setWindowTitle(self.title)
+        self.tableWidget.setRowCount(len(Kopie))
+        self.tableWidget.setColumnCount(len(Kopie[1]))
+
+        # Spaltengrößen passen sich an Platzbedarf an
+        header = self.tableWidget.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        # Spalten beschriften
+        self.tableWidget.setHorizontalHeaderLabels(["Name", "Punkte", "S", "U", "N", "MP", "SP", "Schnitt"])
+
+        # Tabelle wird beschrieben
+        for i in range(0, len(Kopie), 1):
+            for j in range(0, len(Kopie[i]), 1):
+                self.tableWidget.setItem(i, j, QTableWidgetItem(str(Kopie[i][j])))
+        self.tableWidget.doubleClicked.connect(self.on_click)
+
+    @pyqtSlot()
+    def on_click(self):
+        print("\n")
+        for currentQTableWidgetItem in self.tableWidget.selectedItems():
+            print(currentQTableWidgetItem.row(), currentQTableWidgetItem.column(), currentQTableWidgetItem.text())
+
+
+
 
 
 while 1:
