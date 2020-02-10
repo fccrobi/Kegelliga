@@ -1,5 +1,6 @@
 import random
 import sys
+from copy import deepcopy
 from typing import List, Any
 
 import numpy as np
@@ -10,23 +11,28 @@ from PyQt5.QtWidgets import QApplication, QWidget, QTableWidget, QTableWidgetIte
 from tabulate import tabulate
 
 
-# scheinbar erledigt??
-# TODO Toni Zimmermann  119  129  130  121   499  2  0  1  2   497  121  139  123  114  Hagen Unger warum verliert Toni MP???
+# TODO Anfangschance 50%, erhöhen oder verringern je nach Stärke, anstatt nur erhöhen
+# TODO Godmode
+
+# TODO Geld nach Saisonerhalt und gewisse Schwelle damit Spieler wechselt?
+# TODO Geld als zusätzlicher Anreiz, zum Chance erhöhen??
+# TODO Alter/Stärkeänderung, Neugeneration Spieler, Normalverteilung nach Alter????, Gute Saison (Schnitt > Stärke) -> mehr Verbesserung und umgekehrt
+
 
 # TODO Ergebnisse als GUI mit farblichen Ergebnissen
 # TODO GUI Doppelklick auf Spieler mit Graph von Ergebnissen
-# TODO Alter/Stärkeänderung, Neugeneration Spieler, Normalverteilung nach Alter????
 # TODO Formkurve Spieler, alle paar Woche mal schlechte Form z.B.
 # TODO Saisoncounter, jede Saison neues Tabellenblatt mit Rostern und Tabellen
-# TODO Statistik Ergebnisse
+# TODO Bei Spieler-Abruf ALLE Ergebnisse saisonübergreifend darstellen + Graph
+# TODO verstecktes Talent, beurteilen anhand wie Graph sich verändert hat.
 # TODO mehrere Klassen Promotion / relegation (als erstes noch über manuelle Eingabe / später automatisch)
 # TODO langsamer Anzeigemodus / Bahn für Bahn / Starter für Starter
 # TODO Team managen und Austellung bestimmen
-# TODO Bahnrekorde
+# TODO Bahnrekorde, Bestwerte der Spieler speichern
 # TODO Heimbahn Wählitz zb besser als Teuchern
 # TODO Pokal
 # TODO Geld für Transfers
-# TODO Neurales Netzwerk lernt wass es machen muss um erster in Tabelle zu werden, vorher umstellen Spielerwechsel über Name zu Spielerwechsel nach i???
+# TODO Neurales Netzwerk lernt was es machen muss um erster in Tabelle zu werden, vorher umstellen Spielerwechsel über Name zu Spielerwechsel nach i???
 
 
 class Liga:
@@ -44,7 +50,10 @@ class Liga:
             spieler = []
             if liganame == data[i][0]:
                 for j in range(0, 8, 1):
-                    spieler.append([data[i + j][3], data[i + j][4]])
+                    Array = [data[i + j][3], data[i + j][4], 0, 0, 0]
+                    for k in range(8, sheet.ncols, 1):
+                        Array.append(data[i + j][k])
+                    spieler.append(Array)
                 team_a = Verein(data[i][1], data[i][2], spieler, 0, 0, 0, 0, 0, 0)
                 self.Ligaa.append(team_a)
         spielplan = self.spielplanGenerator(anzahl)
@@ -75,7 +84,7 @@ class Liga:
             if inp == "1":
                 self.Teamadd()
             elif inp == "3":
-                self.Statistik()
+                self.statistikTeam()
             elif inp == "4":
                 self.Tabelle(spieltag_nr)
             elif inp == "5":
@@ -119,14 +128,18 @@ class Liga:
             print("Liga voll!")
 
     # TeamStatistik ausgeben
-    def Statistik(self):
+    def statistikTeam(self):
         print("Welcher Verein?")
         inp = input()
         for Verein in self.Ligaa:
             if Verein.Name == inp:
                 print(Verein.Name)
-                print(Verein.Stärke)
-                print(Verein.Punkte)
+                # deepcopy, da sonst Originalarray verändert wurde
+                Array = deepcopy(Verein.Spieler)
+                # entfernen der Spalte für "Stärke"
+                for i in range(0, len(Array)):
+                    del Array[i][1]
+                print(tabulate(Array))
                 return
         print("Verein nicht gefunden")
 
@@ -165,58 +178,93 @@ class Liga:
 
             # for Schleife für Anzahl Spiele am Spieltag
             for i in range(0, len(Spielplan[SpieltagNr - 1]), 1):
-                try:
-                    Spiel2 = Spiel(self.Ligaa[Spielplan[SpieltagNr - 1][i][0] - 1],
-                                   self.Ligaa[Spielplan[SpieltagNr - 1][i][1] - 1], zeile, SpieltagNr)
-                    zeile += 10
-                    wb.save()
-                except:
-                    print("Anzahl Teams Spielplan und Anzahl Teams Liga stimmen nicht überein")
-                    return
+                # try:
+                Spiel2 = Spiel(self.Ligaa[Spielplan[SpieltagNr - 1][i][0] - 1],
+                               self.Ligaa[Spielplan[SpieltagNr - 1][i][1] - 1], zeile, SpieltagNr)
+                zeile += 10
+                wb.save()
+            # except:
+            #    print("Anzahl Teams Spielplan und Anzahl Teams Liga stimmen nicht überein")
+            #   return
 
     # Tabelle-GUI
     # app = QApplication(sys.argv)
     # Spieltagsuebersicht = Spieltagsuebersicht(Kopie)
     # Wichtige Zeile, damit Fenster offen bleibt, aber nach Schließung das Programm weiterläuft
-    #app.exec_()
-
+    # app.exec_()
 
     def Spielerwechsel(self):
 
-        print("Spieler 1:")
+        Wechsel = 0.1
+        print("1 = Godmode, 0 = mit Wahrscheinlichkeit")
+        inp = input()
+
+        print("wird versucht zu verpflichten: ")
         Sp1 = input()
         i1 = -1
         j1 = 0
+        StärkeT1 = 0
         # Position im Array Spieler 1 finden
+        # für jeden Verein
         for i in range(0, len(self.Ligaa), 1):
+            # für jeden Spieler des Vereins
             for j in range(0, len(self.Ligaa[i].Spieler), 1):
+                # wenn Name richtig
                 if (self.Ligaa[i].Spieler[j][0] == Sp1):
                     i1 = i
                     j1 = j
+                    # Stärke des Teams des zu verpflichtenden Spielers ermitteln
+                    # nicht in erster Spielerschleife, da sonst ALLE Vereine addiert weden
+                    for k in range(0, len(self.Ligaa[i].Spieler), 1):
+                        StärkeT1 += self.Ligaa[i].Spieler[k][1]
                     break
         if (i1 == -1 and j1 == 0):
             print("Spieler nicht gefunden")
             return 0
 
-        print("Spieler 2:")
+        print("soll abgegeben werden: ")
         Sp2 = input()
         i2 = -1
         j2 = 0
+        StärkeT2 = 0
         # Position im Array Spieler 1 finden
         for i in range(0, len(self.Ligaa), 1):
             for j in range(0, len(self.Ligaa[i].Spieler), 1):
                 if (self.Ligaa[i].Spieler[j][0] == Sp2):
                     i2 = i
                     j2 = j
+                    for k in range(0, len(self.Ligaa[i].Spieler), 1):
+                        StärkeT2 += self.Ligaa[i].Spieler[k][1]
                     break
         if (i2 == -1 and j2 == 0):
             print("Spieler nicht gefunden")
             return 0
 
-        self.Ligaa[i1].Spieler.append(self.Ligaa[i2].Spieler[j2])
-        self.Ligaa[i2].Spieler.append(self.Ligaa[i1].Spieler[j1])
-        self.Ligaa[i1].Spieler.pop(j1)
-        self.Ligaa[i2].Spieler.pop(j2)
+        # Wenn Teams das verpflichten will, stärker ist als altes Team, höhere Chance
+        if (StärkeT2 >= StärkeT1):
+            Wechsel += ((StärkeT2 / StärkeT1) - 1) * 10
+            print(str(round(((StärkeT2 / StärkeT1) - 1) * 1000)) + "% dadurch, dass neues Team besser ist als altes")
+        # Wenn Spieler schlechter ist als andere Spieler im neuen Team
+        if (StärkeT2 >= self.Ligaa[i1].Spieler[j1][1] * 8):
+            Wechsel += ((StärkeT2 / (self.Ligaa[i1].Spieler[j1][1] * 8)) - 1) * 2
+            print(str(round(((StärkeT2 / (self.Ligaa[i1].Spieler[j1][
+                                              1] * 8)) - 1) * 200)) + "% dadurch, dass Spieler schlechter ist als andere im neuem Team")
+
+        print(str(round(Wechsel * 100)) + "% Wechselchance")
+
+        rand = random.randint(0, 100)
+        if (rand <= Wechsel * 100):
+            Wechsel = 1
+        print(rand)
+
+        if Wechsel == 1:
+            self.Ligaa[i1].Spieler.append(self.Ligaa[i2].Spieler[j2])
+            self.Ligaa[i2].Spieler.append(self.Ligaa[i1].Spieler[j1])
+            self.Ligaa[i1].Spieler.pop(j1)
+            self.Ligaa[i2].Spieler.pop(j2)
+            print("Spielerwechsel erfolgreich!")
+        else:
+            print("Spieler wechselt nicht!")
 
 
 class Verein:
@@ -259,8 +307,6 @@ class Spiel:
         self.TeamB = team_b
         self.zeile = zeile
         self.SpieltagNr = SpieltagNr
-
-
 
         print(team_a.Name + " - " + team_b.Name)
 
@@ -314,6 +360,16 @@ class Spiel:
                     elif ergeb[j][10] == ergeb[j][5]:
                         ergeb[j][8] = 0.5
 
+            # für statistikTeam, Anzahl Spiele und Gesamtholz hochzählen, Schnitt berechnen
+            team_a.Spieler[j][2] += ergeb[j][5]
+            team_a.Spieler[j][3] += 1
+            team_a.Spieler[j][4] = team_a.Spieler[j][2] / team_a.Spieler[j][3]
+            team_a.Spieler[j].append(ergeb[j][5])
+            team_b.Spieler[j][2] += ergeb[j][10]
+            team_b.Spieler[j][3] += 1
+            team_b.Spieler[j][4] = team_b.Spieler[j][2] / team_b.Spieler[j][3]
+            team_b.Spieler[j].append(ergeb[j][10])
+
             # Punkte Heim
             # SP Spieler
             ergeb[j][6] = 4 - ergeb[j][9]
@@ -342,11 +398,15 @@ class Spiel:
                                 "B4", "Name"]))
 
         # Excel-Export
-        # TODO macht Programm langsam
-        sht = xw.sheets(str(SpieltagNr))
-        for i in range(0, len(ergeb)):
-            for j in range(0, len(ergeb[i])):
-                sht.range((i + 1 + zeile, j + 1)).value = ergeb[i][j]
+
+        try:
+            sht = xw.sheets(str(SpieltagNr))
+            # TODO macht Programm langsam
+            for i in range(0, len(ergeb)):
+                for j in range(0, len(ergeb[i])):
+                    sht.range((i + 1 + zeile, j + 1)).value = ergeb[i][j]
+        except:
+            print("Bitte Input-Datei schließen!")
 
         # Tabellenpunkte
         if ergeb[6][7] > ergeb[6][8]:
@@ -364,8 +424,6 @@ class Spiel:
         team_a.Spieler.append(ersatz[1])
         team_b.Spieler.append(ersatz2[0])
         team_b.Spieler.append(ersatz2[1])
-
-        return ergeb
 
 
 class Table(QWidget):
@@ -468,9 +526,6 @@ class Spieltagsuebersicht(QWidget):
         print("\n")
         for currentQTableWidgetItem in self.tableWidget.selectedItems():
             print(currentQTableWidgetItem.row(), currentQTableWidgetItem.column(), currentQTableWidgetItem.text())
-
-
-
 
 
 while 1:
