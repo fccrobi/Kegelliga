@@ -3,6 +3,7 @@ import sys
 from copy import deepcopy
 from typing import List, Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 import xlrd
 import xlwings as xw
@@ -11,22 +12,30 @@ from PyQt5.QtWidgets import QApplication, QWidget, QTableWidget, QTableWidgetIte
 from tabulate import tabulate
 
 
-# TODO Anfangschance 50%, erhöhen oder verringern je nach Stärke, anstatt nur erhöhen
-# TODO Godmode
+# TODO Sven Kettenbeil       147   136   122   147   552     2     0     1     2   551   138   153   124   136  Oliver Heinold
 
+
+# TODO Normalverteilung anhand von ALLEN Einzelergebnissen einer Liga berechnen
+
+
+# TODO Alter/Stärkeänderung, Neugeneration Spieler, Normalverteilung nach Alter????, Gute Saison (Schnitt > Stärke) -> mehr Verbesserung und umgekehrt
+# TODO langsamer Anzeigemodus / Bahn für Bahn / Starter für Starter
+
+
+# TODO Chance erhöhen wenn in Stammformation (erste6), Chance erhöhen wenn in alten Team NICHT in Startformation
+# vllt. nur 1 Versuch pro Spieltag??
+# TODO überprüfen Annäherung Schnitt und Stärke nach 26 Spieltagen, dann einschätzen wie dringend Form implementiert werden muss
 # TODO Geld nach Saisonerhalt und gewisse Schwelle damit Spieler wechselt?
 # TODO Geld als zusätzlicher Anreiz, zum Chance erhöhen??
-# TODO Alter/Stärkeänderung, Neugeneration Spieler, Normalverteilung nach Alter????, Gute Saison (Schnitt > Stärke) -> mehr Verbesserung und umgekehrt
-
 
 # TODO Ergebnisse als GUI mit farblichen Ergebnissen
 # TODO GUI Doppelklick auf Spieler mit Graph von Ergebnissen
+# TODO Schnittliste Liga??
+# TODO mehrere Klassen Promotion / relegation (als erstes noch über manuelle Eingabe / später automatisch)
 # TODO Formkurve Spieler, alle paar Woche mal schlechte Form z.B.
 # TODO Saisoncounter, jede Saison neues Tabellenblatt mit Rostern und Tabellen
 # TODO Bei Spieler-Abruf ALLE Ergebnisse saisonübergreifend darstellen + Graph
 # TODO verstecktes Talent, beurteilen anhand wie Graph sich verändert hat.
-# TODO mehrere Klassen Promotion / relegation (als erstes noch über manuelle Eingabe / später automatisch)
-# TODO langsamer Anzeigemodus / Bahn für Bahn / Starter für Starter
 # TODO Team managen und Austellung bestimmen
 # TODO Bahnrekorde, Bestwerte der Spieler speichern
 # TODO Heimbahn Wählitz zb besser als Teuchern
@@ -50,7 +59,7 @@ class Liga:
             spieler = []
             if liganame == data[i][0]:
                 for j in range(0, 8, 1):
-                    Array = [data[i + j][3], data[i + j][4], 0, 0, 0]
+                    Array = [data[i + j][3], data[i + j][4], data[i + j][5], 0, 0, 0]
                     for k in range(8, sheet.ncols, 1):
                         Array.append(data[i + j][k])
                     spieler.append(Array)
@@ -58,31 +67,51 @@ class Liga:
                 self.Ligaa.append(team_a)
         spielplan = self.spielplanGenerator(anzahl)
         self.menu(spielplan, spieltag_nr)
+        self.alterung()
 
         # aus Objekten zu Excel
-        wb = xw.Book("Input.xlsx")
-        sht = xw.sheets("Tabelle1")
-        print("Moment,speichern.....")
-        for i in range(0, len(self.Ligaa) * 8, 8):
-            sht.range((i + 1, 1)).value = self.Liganame
-            sht.range((i + 1, 2)).value = self.Ligaa[int(i / 8)].Name
-            for j in range(0, 8, 1):
-                sht.range((i + j + 1, 4)).value = self.Ligaa[int(i / 8)].Spieler[j]
-        wb.save()  # speichern, da sonst Änderungen nicht geladen werden
+        try:
+            wb = xw.Book("Input.xlsx")
+            sht = xw.sheets("Tabelle1")
+            print("Moment,speichern.....")
+            for i in range(0, len(self.Ligaa) * 8, 8):
+                sht.range((i + 1, 1)).value = self.Liganame
+                sht.range((i + 1, 2)).value = self.Ligaa[int(i / 8)].Name
+                for j in range(0, 8, 1):
+                    sht.range((i + j + 1, 4)).value = self.Ligaa[int(i / 8)].Spieler[j]
+            wb.save()  # speichern, da sonst Änderungen nicht geladen werden
+            wb.close()
+        except:
+            print("Bitte Input-Datei schließen, und mit 0 bestätigen")
+            eing = input()
+            wb = xw.Book("Input.xlsx")
+            sht = xw.sheets("Tabelle1")
+            print("Moment,speichern.....")
+            for i in range(0, len(self.Ligaa) * 8, 8):
+                sht.range((i + 1, 1)).value = self.Liganame
+                sht.range((i + 1, 2)).value = self.Ligaa[int(i / 8)].Name
+                for j in range(0, 8, 1):
+                    sht.range((i + j + 1, 4)).value = self.Ligaa[int(i / 8)].Spieler[j]
+            wb.save()  # speichern, da sonst Änderungen nicht geladen werden
+            wb.close()
 
     def menu(self, spielplan, spieltag_nr):
         while 1:
             print("")
             print("1 = Team hinzufügen")
+            print("2 = Statistik Spieler")
             print("3 = Statistik Team")
             print("4 = Tabelle")
             print("5 = Spieltag")
             print("6 = Spielerwechsel")
+            print("60 = Spielerwechsel Godmode")
             print("0 = Saison beenden und Teams speichern")
             print("")
             inp: str = input()
             if inp == "1":
                 self.Teamadd()
+            elif inp == "2":
+                self.statistikSpieler()
             elif inp == "3":
                 self.statistikTeam()
             elif inp == "4":
@@ -94,6 +123,8 @@ class Liga:
                 spieltag_nr += 1
             elif inp == "6":
                 self.Spielerwechsel()
+            elif inp == "60":
+                self.SpielerwechselGodmode()
             elif inp == "0":
                 print("Bitte nochmal mit 0 bestätigen!")
                 inp = input()
@@ -127,6 +158,34 @@ class Liga:
         if (Liga == self.anzahl):
             print("Liga voll!")
 
+    def statistikSpieler(self):
+        print("Spieler: ")
+        Sp1 = input()
+        i1 = -1
+
+        # Position im Array finden
+        # für jeden Verein
+        for i in range(0, len(self.Ligaa), 1):
+            # für jeden Spieler des Vereins
+            for j in range(0, len(self.Ligaa[i].Spieler), 1):
+                # wenn Name richtig
+                if (self.Ligaa[i].Spieler[j][0] == Sp1):
+                    Array = deepcopy(self.Ligaa[i].Spieler[j])
+                    # Nicht-Ergebnisse entfernen
+                    del Array[0:6]
+                    # leere Zellen entfernen
+                    while ("" in Array):
+                        Array.remove("")
+                    print(Array)
+                    plt.plot(Array)
+                    plt.ylabel('Ergebnisse')
+                    plt.show()
+                    i1 = 0
+                    break
+        if (i1 == -1):
+            print("Spieler nicht gefunden")
+            return 0
+
     # TeamStatistik ausgeben
     def statistikTeam(self):
         print("Welcher Verein?")
@@ -142,6 +201,7 @@ class Liga:
                 print(tabulate(Array))
                 return
         print("Verein nicht gefunden")
+
 
     # Tabelle ausgeben
     def Tabelle(self, SpieltagNr):
@@ -195,9 +255,7 @@ class Liga:
 
     def Spielerwechsel(self):
 
-        Wechsel = 0.1
-        print("1 = Godmode, 0 = mit Wahrscheinlichkeit")
-        inp = input()
+        Wechsel = 0.3
 
         print("wird versucht zu verpflichten: ")
         Sp1 = input()
@@ -242,13 +300,26 @@ class Liga:
 
         # Wenn Teams das verpflichten will, stärker ist als altes Team, höhere Chance
         if (StärkeT2 >= StärkeT1):
+            Wechsel += ((StärkeT2 / StärkeT1) - 1) * 5
+            print(str(round(((StärkeT2 / StärkeT1) - 1) * 500)) + "% dadurch, dass neues Team besser ist als altes")
+        else:
             Wechsel += ((StärkeT2 / StärkeT1) - 1) * 10
-            print(str(round(((StärkeT2 / StärkeT1) - 1) * 1000)) + "% dadurch, dass neues Team besser ist als altes")
+            print(str(round(((StärkeT2 / StärkeT1) - 1) * 1000)) + "% dadurch, dass altes Team besser ist als neues")
+
         # Wenn Spieler schlechter ist als andere Spieler im neuen Team
         if (StärkeT2 >= self.Ligaa[i1].Spieler[j1][1] * 8):
-            Wechsel += ((StärkeT2 / (self.Ligaa[i1].Spieler[j1][1] * 8)) - 1) * 2
+            Wechsel += ((StärkeT2 / (self.Ligaa[i1].Spieler[j1][1] * 8)) - 1) * 3
             print(str(round(((StärkeT2 / (self.Ligaa[i1].Spieler[j1][
-                                              1] * 8)) - 1) * 200)) + "% dadurch, dass Spieler schlechter ist als andere im neuem Team")
+                                              1] * 8)) - 1) * 300)) + "% dadurch, dass Spieler schlechter ist als andere im neuem Team")
+        else:
+            Wechsel += ((StärkeT2 / (self.Ligaa[i1].Spieler[j1][1] * 8)) - 1) * 3
+            print(str(round(((StärkeT2 / (self.Ligaa[i1].Spieler[j1][
+                                              1] * 8)) - 1) * 300)) + "% dadurch, dass Spieler besser ist als andere im neuem Team")
+
+
+
+
+
 
         print(str(round(Wechsel * 100)) + "% Wechselchance")
 
@@ -265,6 +336,54 @@ class Liga:
             print("Spielerwechsel erfolgreich!")
         else:
             print("Spieler wechselt nicht!")
+
+    def SpielerwechselGodmode(self):
+
+        print("wird versucht zu verpflichten: ")
+        Sp1 = input()
+        i1 = -1
+        j1 = 0
+        # Position im Array Spieler 1 finden
+        # für jeden Verein
+        for i in range(0, len(self.Ligaa), 1):
+            # für jeden Spieler des Vereins
+            for j in range(0, len(self.Ligaa[i].Spieler), 1):
+                # wenn Name richtig
+                if (self.Ligaa[i].Spieler[j][0] == Sp1):
+                    i1 = i
+                    j1 = j
+                    break
+        if (i1 == -1 and j1 == 0):
+            print("Spieler nicht gefunden")
+            return 0
+
+        print("soll abgegeben werden: ")
+        Sp2 = input()
+        i2 = -1
+        j2 = 0
+        # Position im Array Spieler 1 finden
+        for i in range(0, len(self.Ligaa), 1):
+            for j in range(0, len(self.Ligaa[i].Spieler), 1):
+                if (self.Ligaa[i].Spieler[j][0] == Sp2):
+                    i2 = i
+                    j2 = j
+                    break
+        if (i2 == -1 and j2 == 0):
+            print("Spieler nicht gefunden")
+            return 0
+
+        self.Ligaa[i1].Spieler.append(self.Ligaa[i2].Spieler[j2])
+        self.Ligaa[i2].Spieler.append(self.Ligaa[i1].Spieler[j1])
+        self.Ligaa[i1].Spieler.pop(j1)
+        self.Ligaa[i2].Spieler.pop(j2)
+        print("Spielerwechsel erfolgreich!")
+
+    def alterung(self):
+        for i in range(0, len(self.Ligaa)):
+            for j in range(0, len(self.Ligaa[i].Spieler)):
+                self.Ligaa[i].Spieler[j][2] +=1
+
+
 
 
 class Verein:
@@ -330,9 +449,9 @@ class Spiel:
 
         ergeb = [[(0) for c in range(0, 16)] for r in range(0, 7)]
         for j in range(0, 6, 1):
-            # Namen eintragen
-            ergeb[j][0] = team_a.Spieler[j][0]
-            ergeb[j][15] = team_b.Spieler[j][0]
+            # Namen und Alter eintragen
+            ergeb[j][0] = "(" + str(int(team_a.Spieler[j][2])) + ")" + str(team_a.Spieler[j][0])
+            ergeb[j][15] = "(" + str(int(team_b.Spieler[j][2])) + ")" + str(team_b.Spieler[j][0])
             # Tagesform, beeinflusst Gesamtergebnis Spieler
             hrand_a = np.random.normal(1000, 30, 1)
             grand_a = np.random.normal(1000, 30, 1)
@@ -361,13 +480,13 @@ class Spiel:
                         ergeb[j][8] = 0.5
 
             # für statistikTeam, Anzahl Spiele und Gesamtholz hochzählen, Schnitt berechnen
-            team_a.Spieler[j][2] += ergeb[j][5]
-            team_a.Spieler[j][3] += 1
-            team_a.Spieler[j][4] = team_a.Spieler[j][2] / team_a.Spieler[j][3]
+            team_a.Spieler[j][3] += ergeb[j][5]
+            team_a.Spieler[j][4] += 1
+            team_a.Spieler[j][5] = team_a.Spieler[j][3] / team_a.Spieler[j][4]
             team_a.Spieler[j].append(ergeb[j][5])
-            team_b.Spieler[j][2] += ergeb[j][10]
-            team_b.Spieler[j][3] += 1
-            team_b.Spieler[j][4] = team_b.Spieler[j][2] / team_b.Spieler[j][3]
+            team_b.Spieler[j][3] += ergeb[j][10]
+            team_b.Spieler[j][4] += 1
+            team_b.Spieler[j][5] = team_b.Spieler[j][3] / team_b.Spieler[j][4]
             team_b.Spieler[j].append(ergeb[j][10])
 
             # Punkte Heim
