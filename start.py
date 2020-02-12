@@ -13,12 +13,15 @@ from tabulate import tabulate
 
 
 # TODO Sven Kettenbeil       147   136   122   147   552     2     0     1     2   551   138   153   124   136  Oliver Heinold
-
-
 # TODO Normalverteilung anhand von ALLEN Einzelergebnissen einer Liga berechnen
 
 
-# TODO Alter/Stärkeänderung, Neugeneration Spieler, Normalverteilung nach Alter????, Gute Saison (Schnitt > Stärke) -> mehr Verbesserung und umgekehrt
+# TODO Talent einbauen in Alterung, Stärkeanpassung einschätzen zwecks Realismus
+# TODO Stärkeänderung bissel abschwächen
+# TODO Peak-Alter als Zufallswert einbauen & an Normalverteilung übergebn
+# TODO Neugeneration Spieler, Gute Saison (Schnitt > Stärke) -> mehr Verbesserung und umgekehrt
+
+
 # TODO langsamer Anzeigemodus / Bahn für Bahn / Starter für Starter
 
 
@@ -44,6 +47,9 @@ from tabulate import tabulate
 # TODO Neurales Netzwerk lernt was es machen muss um erster in Tabelle zu werden, vorher umstellen Spielerwechsel über Name zu Spielerwechsel nach i???
 
 
+# TODO Bei Wählitz Gesamtschnitte///Heimschnitte als Stärke und sehen wie sie damit aufsteigen, wie weit sie kommen???
+
+
 class Liga:
 
     def __init__(self, anzahl, ligaebene, liganame):
@@ -59,7 +65,7 @@ class Liga:
             spieler = []
             if liganame == data[i][0]:
                 for j in range(0, 8, 1):
-                    Array = [data[i + j][3], data[i + j][4], data[i + j][5], 0, 0, 0]
+                    Array = [data[i + j][3], data[i + j][4], data[i + j][5], data[i + j][6], 0, 0, 0]
                     for k in range(8, sheet.ncols, 1):
                         Array.append(data[i + j][k])
                     spieler.append(Array)
@@ -172,7 +178,7 @@ class Liga:
                 if (self.Ligaa[i].Spieler[j][0] == Sp1):
                     Array = deepcopy(self.Ligaa[i].Spieler[j])
                     # Nicht-Ergebnisse entfernen
-                    del Array[0:6]
+                    del Array[0:7]
                     # leere Zellen entfernen
                     while ("" in Array):
                         Array.remove("")
@@ -195,13 +201,13 @@ class Liga:
                 print(Verein.Name)
                 # deepcopy, da sonst Originalarray verändert wurde
                 Array = deepcopy(Verein.Spieler)
-                # entfernen der Spalte für "Stärke"
+                # entfernen der Spalte für "Stärke" und Talent
                 for i in range(0, len(Array)):
                     del Array[i][1]
+                    del Array[i][2]
                 print(tabulate(Array))
                 return
         print("Verein nicht gefunden")
-
 
     # Tabelle ausgeben
     def Tabelle(self, SpieltagNr):
@@ -316,11 +322,6 @@ class Liga:
             print(str(round(((StärkeT2 / (self.Ligaa[i1].Spieler[j1][
                                               1] * 8)) - 1) * 300)) + "% dadurch, dass Spieler besser ist als andere im neuem Team")
 
-
-
-
-
-
         print(str(round(Wechsel * 100)) + "% Wechselchance")
 
         rand = random.randint(0, 100)
@@ -380,10 +381,21 @@ class Liga:
 
     def alterung(self):
         for i in range(0, len(self.Ligaa)):
+            print(" ")
+            print(self.Ligaa[i].Name)
+            print(" ")
             for j in range(0, len(self.Ligaa[i].Spieler)):
-                self.Ligaa[i].Spieler[j][2] +=1
+                self.Ligaa[i].Spieler[j][2] += 1
+                erg = np.random.normal((28 - self.Ligaa[i].Spieler[j][2]) / 2, 1, 1) / 100 * self.Ligaa[i].Spieler[j][
+                    1]
+                neu = erg + self.Ligaa[i].Spieler[j][1]
 
+                print(self.Ligaa[i].Spieler[j][0] + " " + str(round(self.Ligaa[i].Spieler[j][2])) + " alt: " + str(
+                    round(self.Ligaa[i].Spieler[j][1])) + " Verä.: " + str(round(erg[0])) + " neu: " + str(
+                    round(neu[0])))
 
+                # Neue Stärke eintragen
+                self.Ligaa[i].Spieler[j][1] = neu[0]
 
 
 class Verein:
@@ -480,13 +492,13 @@ class Spiel:
                         ergeb[j][8] = 0.5
 
             # für statistikTeam, Anzahl Spiele und Gesamtholz hochzählen, Schnitt berechnen
-            team_a.Spieler[j][3] += ergeb[j][5]
-            team_a.Spieler[j][4] += 1
-            team_a.Spieler[j][5] = team_a.Spieler[j][3] / team_a.Spieler[j][4]
+            team_a.Spieler[j][4] += ergeb[j][5]
+            team_a.Spieler[j][5] += 1
+            team_a.Spieler[j][6] = team_a.Spieler[j][4] / team_a.Spieler[j][5]
             team_a.Spieler[j].append(ergeb[j][5])
-            team_b.Spieler[j][3] += ergeb[j][10]
-            team_b.Spieler[j][4] += 1
-            team_b.Spieler[j][5] = team_b.Spieler[j][3] / team_b.Spieler[j][4]
+            team_b.Spieler[j][4] += ergeb[j][10]
+            team_b.Spieler[j][5] += 1
+            team_b.Spieler[j][6] = team_b.Spieler[j][4] / team_b.Spieler[j][5]
             team_b.Spieler[j].append(ergeb[j][10])
 
             # Punkte Heim
