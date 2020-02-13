@@ -3,18 +3,21 @@ import sys
 from copy import deepcopy
 from typing import List, Any
 
+import PyQt5.QtGui
 import matplotlib.pyplot as plt
 import numpy as np
 import xlrd
 import xlwings as xw
 from PyQt5.QtCore import pyqtSlot
-from PyQt5.QtWidgets import QApplication, QWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QHeaderView
+from PyQt5.QtWidgets import QApplication, QWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QHeaderView, QPushButton
 from tabulate import tabulate
 
 
 # TODO Sven Kettenbeil       147   136   122   147   552     2     0     1     2   551   138   153   124   136  Oliver Heinold
 # TODO Normalverteilung anhand von ALLEN Einzelergebnissen einer Liga berechnen
 
+
+# TODO Conditional Formatting einbauen für Gesamtergebnis
 
 # TODO Talent einbauen in Alterung, Stärkeanpassung einschätzen zwecks Realismus
 # TODO Stärkeänderung bissel abschwächen
@@ -72,6 +75,7 @@ class Liga:
                 team_a = Verein(data[i][1], data[i][2], spieler, 0, 0, 0, 0, 0, 0)
                 self.Ligaa.append(team_a)
         spielplan = self.spielplanGenerator(anzahl)
+
         self.menu(spielplan, spieltag_nr)
         self.alterung()
 
@@ -102,6 +106,9 @@ class Liga:
             wb.close()
 
     def menu(self, spielplan, spieltag_nr):
+        # Team für langsamen Modus
+        print("Zu überwachendes Team: ")
+        Slow = input()
         while 1:
             print("")
             print("1 = Team hinzufügen")
@@ -109,6 +116,7 @@ class Liga:
             print("3 = Statistik Team")
             print("4 = Tabelle")
             print("5 = Spieltag")
+            print("50 = Beobachtetes Team ändern")
             print("6 = Spielerwechsel")
             print("60 = Spielerwechsel Godmode")
             print("0 = Saison beenden und Teams speichern")
@@ -123,10 +131,12 @@ class Liga:
             elif inp == "4":
                 self.Tabelle(spieltag_nr)
             elif inp == "5":
-                vorbei = self.Spieltag(spielplan, spieltag_nr)
+                vorbei = self.Spieltag(spielplan, spieltag_nr, Slow)
                 if vorbei == 2:
                     spieltag_nr -= 1
                 spieltag_nr += 1
+            elif inp == "50":
+                Slow = self.Slow()
             elif inp == "6":
                 self.Spielerwechsel()
             elif inp == "60":
@@ -227,7 +237,7 @@ class Liga:
         # Wichtige Zeile, damit Fenster offen bleibt, aber nach Schließung das Programm weiterläuft
         app.exec_()
 
-    def Spieltag(self, Spielplan, SpieltagNr):
+    def Spieltag(self, Spielplan, SpieltagNr, Slow):
         Spieltagserg = []
         print("Spieltag Nr: " + str(SpieltagNr))
         # prüfen ob Saison vorbei ist
@@ -245,19 +255,32 @@ class Liga:
             # for Schleife für Anzahl Spiele am Spieltag
             for i in range(0, len(Spielplan[SpieltagNr - 1]), 1):
                 # try:
-                Spiel2 = Spiel(self.Ligaa[Spielplan[SpieltagNr - 1][i][0] - 1],
-                               self.Ligaa[Spielplan[SpieltagNr - 1][i][1] - 1], zeile, SpieltagNr)
+                if (Slow == self.Ligaa[Spielplan[SpieltagNr - 1][i][0] - 1].Name or Slow == self.Ligaa[
+                    Spielplan[SpieltagNr - 1][i][1] - 1].Name):
+                    app = QApplication(sys.argv)
+                    Spiel2 = SpielSlow(self.Ligaa[Spielplan[SpieltagNr - 1][i][0] - 1],
+                                       self.Ligaa[Spielplan[SpieltagNr - 1][i][1] - 1], zeile, SpieltagNr)
+                    # Wichtige Zeile, damit Fenster offen bleibt, aber nach Schließung das Programm weiterläuft
+                    app.exec_()
+                else:
+                    Spiel2 = Spiel(self.Ligaa[Spielplan[SpieltagNr - 1][i][0] - 1],
+                                   self.Ligaa[Spielplan[SpieltagNr - 1][i][1] - 1], zeile, SpieltagNr)
+                ergeb = Spiel2.Ausgabe()
+                print(tabulate(ergeb,
+                               headers=["Name", "B1", "B2", "B3", "B4", "G", "SP", "MP", "MP", "SP", "G", "B1",
+                                        "B2", "B3",
+                                        "B4", "Name"]))
                 zeile += 10
                 wb.save()
             # except:
             #    print("Anzahl Teams Spielplan und Anzahl Teams Liga stimmen nicht überein")
             #   return
 
-    # Tabelle-GUI
-    # app = QApplication(sys.argv)
-    # Spieltagsuebersicht = Spieltagsuebersicht(Kopie)
-    # Wichtige Zeile, damit Fenster offen bleibt, aber nach Schließung das Programm weiterläuft
-    # app.exec_()
+    def Slow(self):
+        print("Zu überwachendes Team: ")
+        self.Slow = input()
+        return self.Slow
+
 
     def Spielerwechsel(self):
 
@@ -438,6 +461,7 @@ class Spiel:
         self.TeamB = team_b
         self.zeile = zeile
         self.SpieltagNr = SpieltagNr
+        self.ergeb = [[(0) for c in range(0, 16)] for r in range(0, 7)]
 
         print(team_a.Name + " - " + team_b.Name)
 
@@ -459,102 +483,214 @@ class Spiel:
         ersatz2.append(team_b.Spieler[rd])
         team_b.Spieler.pop(rd)
 
-        ergeb = [[(0) for c in range(0, 16)] for r in range(0, 7)]
         for j in range(0, 6, 1):
             # Namen und Alter eintragen
-            ergeb[j][0] = "(" + str(int(team_a.Spieler[j][2])) + ")" + str(team_a.Spieler[j][0])
-            ergeb[j][15] = "(" + str(int(team_b.Spieler[j][2])) + ")" + str(team_b.Spieler[j][0])
+            self.ergeb[j][0] = "(" + str(int(team_a.Spieler[j][2])) + ")" + str(team_a.Spieler[j][0])
+            self.ergeb[j][15] = "(" + str(int(team_b.Spieler[j][2])) + ")" + str(team_b.Spieler[j][0])
             # Tagesform, beeinflusst Gesamtergebnis Spieler
             hrand_a = np.random.normal(1000, 30, 1)
             grand_a = np.random.normal(1000, 30, 1)
             for i in range(1, 5, 1):
                 hrand = np.random.normal(1000, 70, 1)
-                ergeb[j][i] = int(team_a.Spieler[j][1] * (hrand_a / 1000) * (hrand / 1000) / 4)
+                self.ergeb[j][i] = int(team_a.Spieler[j][1] * (hrand_a / 1000) * (hrand / 1000) / 4)
                 # Ergebnis Spieler
-                ergeb[j][5] += ergeb[j][i]
+                self.ergeb[j][5] += self.ergeb[j][i]
 
                 grand = np.random.normal(1000, 70, 1)
-                ergeb[j][i + 10] = int(team_b.Spieler[j][1] * (grand_a / 1000) * (grand / 1000) / 4)
+                self.ergeb[j][i + 10] = int(team_b.Spieler[j][1] * (grand_a / 1000) * (grand / 1000) / 4)
                 # Ergebnis Spieler
-                ergeb[j][10] += ergeb[j][i + 10]
+                self.ergeb[j][10] += self.ergeb[j][i + 10]
                 # SP Spieler
-                if ergeb[j][i + 10] > ergeb[j][i]:
-                    ergeb[j][9] += 1
-                elif ergeb[j][i + 10] == ergeb[j][i]:
-                    ergeb[j][9] += 0.5
+                if self.ergeb[j][i + 10] > self.ergeb[j][i]:
+                    self.ergeb[j][9] += 1
+                elif self.ergeb[j][i + 10] == self.ergeb[j][i]:
+                    self.ergeb[j][9] += 0.5
                 # MP Spieler
-                if ergeb[j][9] > 2:
-                    ergeb[j][8] = 1
-                elif ergeb[j][9] == 2:
-                    if ergeb[j][10] > ergeb[j][5]:
-                        ergeb[j][8] = 1
-                    elif ergeb[j][10] == ergeb[j][5]:
-                        ergeb[j][8] = 0.5
+                if self.ergeb[j][9] > 2:
+                    self.ergeb[j][8] = 1
+                elif self.ergeb[j][9] == 2:
+                    if self.ergeb[j][10] > self.ergeb[j][5]:
+                        self.ergeb[j][8] = 1
+                    elif self.ergeb[j][10] == self.ergeb[j][5]:
+                        self.ergeb[j][8] = 0.5
 
             # für statistikTeam, Anzahl Spiele und Gesamtholz hochzählen, Schnitt berechnen
-            team_a.Spieler[j][4] += ergeb[j][5]
+            team_a.Spieler[j][4] += self.ergeb[j][5]
             team_a.Spieler[j][5] += 1
             team_a.Spieler[j][6] = team_a.Spieler[j][4] / team_a.Spieler[j][5]
-            team_a.Spieler[j].append(ergeb[j][5])
-            team_b.Spieler[j][4] += ergeb[j][10]
+            team_a.Spieler[j].append(self.ergeb[j][5])
+            team_b.Spieler[j][4] += self.ergeb[j][10]
             team_b.Spieler[j][5] += 1
             team_b.Spieler[j][6] = team_b.Spieler[j][4] / team_b.Spieler[j][5]
-            team_b.Spieler[j].append(ergeb[j][10])
+            team_b.Spieler[j].append(self.ergeb[j][10])
 
             # Punkte Heim
             # SP Spieler
-            ergeb[j][6] = 4 - ergeb[j][9]
+            self.ergeb[j][6] = 4 - self.ergeb[j][9]
             # MP Spieler
-            ergeb[j][7] = 1 - ergeb[j][8]
+            self.ergeb[j][7] = 1 - self.ergeb[j][8]
             # Gesamtholz Mannschaft
-            ergeb[6][5] += ergeb[j][5]
-            ergeb[6][10] += ergeb[j][10]
+            self.ergeb[6][5] += self.ergeb[j][5]
+            self.ergeb[6][10] += self.ergeb[j][10]
             # MP Gesamt
-            ergeb[6][7] += ergeb[j][7]
-            ergeb[6][8] += ergeb[j][8]
+            self.ergeb[6][7] += self.ergeb[j][7]
+            self.ergeb[6][8] += self.ergeb[j][8]
             # SP Gesa,t
-            ergeb[6][6] += ergeb[j][6]
-            ergeb[6][9] += ergeb[j][9]
+            self.ergeb[6][6] += self.ergeb[j][6]
+            self.ergeb[6][9] += self.ergeb[j][9]
         # MP für Gesamtholz
-        if ergeb[6][5] > ergeb[6][10]:
-            ergeb[6][7] += 2
-        elif ergeb[6][5] == ergeb[6][10]:
-            ergeb[6][7] += 1
-            ergeb[6][8] += 1
+        if self.ergeb[6][5] > self.ergeb[6][10]:
+            self.ergeb[6][7] += 2
+        elif self.ergeb[6][5] == self.ergeb[6][10]:
+            self.ergeb[6][7] += 1
+            self.ergeb[6][8] += 1
         else:
-            ergeb[6][8] += 2
-
-        print(tabulate(ergeb,
-                       headers=["Name", "B1", "B2", "B3", "B4", "G", "SP", "MP", "MP", "SP", "G", "B1", "B2", "B3",
-                                "B4", "Name"]))
+            self.ergeb[6][8] += 2
 
         # Excel-Export
 
         try:
             sht = xw.sheets(str(SpieltagNr))
             # TODO macht Programm langsam
-            for i in range(0, len(ergeb)):
-                for j in range(0, len(ergeb[i])):
-                    sht.range((i + 1 + zeile, j + 1)).value = ergeb[i][j]
+            for i in range(0, len(self.ergeb)):
+                for j in range(0, len(self.ergeb[i])):
+                    sht.range((i + 1 + zeile, j + 1)).value = self.ergeb[i][j]
         except:
             print("Bitte Input-Datei schließen!")
 
         # Tabellenpunkte
-        if ergeb[6][7] > ergeb[6][8]:
-            team_a.sieg(ergeb[6][7], ergeb[6][6], ergeb[6][5])
-            team_b.niederlage(ergeb[6][8], ergeb[6][9], ergeb[6][10])
-        elif ergeb[6][7] == ergeb[6][8]:
-            team_a.unentschieden(ergeb[6][7], ergeb[6][6], ergeb[6][5])
-            team_b.unentschieden(ergeb[6][8], ergeb[6][9], ergeb[6][10])
+        if self.ergeb[6][7] > self.ergeb[6][8]:
+            team_a.sieg(self.ergeb[6][7], self.ergeb[6][6], self.ergeb[6][5])
+            team_b.niederlage(self.ergeb[6][8], self.ergeb[6][9], self.ergeb[6][10])
+        elif self.ergeb[6][7] == self.ergeb[6][8]:
+            team_a.unentschieden(self.ergeb[6][7], self.ergeb[6][6], self.ergeb[6][5])
+            team_b.unentschieden(self.ergeb[6][8], self.ergeb[6][9], self.ergeb[6][10])
         else:
-            team_b.sieg(ergeb[6][8], ergeb[6][9], ergeb[6][10])
-            team_a.niederlage(ergeb[6][7], ergeb[6][6], ergeb[6][5])
+            team_b.sieg(self.ergeb[6][8], self.ergeb[6][9], self.ergeb[6][10])
+            team_a.niederlage(self.ergeb[6][7], self.ergeb[6][6], self.ergeb[6][5])
 
         # nicht bereite Spieler wieder anhängen
         team_a.Spieler.append(ersatz[0])
         team_a.Spieler.append(ersatz[1])
         team_b.Spieler.append(ersatz2[0])
         team_b.Spieler.append(ersatz2[1])
+
+    def Ausgabe(self):
+        return self.ergeb
+
+
+class SpielSlow(QWidget):
+    def __init__(self, team_a, team_b, zeile, SpieltagNr):
+        super().__init__()
+        self.Table = QWidget
+        self.left = 200
+        self.top = 200
+        self.width = 800
+        self.height = 500
+        self.TeamA = team_a
+        self.TeamB = team_b
+        self.zeile = zeile
+        self.SpieltagNr = SpieltagNr
+        self.i = 0
+        self.j = 1
+        self.Heim = 0
+        self.Gast = 0
+
+        self.ergeb = Spiel(self.TeamA, self.TeamB, zeile, SpieltagNr).Ausgabe()
+
+        self.initUI()
+
+    def initUI(self):
+        self.setGeometry(self.left, self.top, self.width, self.height)
+        self.title = 'Spiel'
+        self.createTable()
+        # Add box layout, add table to box layout and add box layout to widget
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.tableWidget)
+        self.setLayout(self.layout)
+        btn = QPushButton("weiter", self)
+        btn.move(50, 400)
+        btn.clicked.connect(self.weiter)
+
+        # Show widget
+        self.show()
+
+    def createTable(self):
+        # Create table
+        self.tableWidget = QTableWidget()
+        self.setWindowTitle(self.title)
+        self.tableWidget.setRowCount(7)
+        self.tableWidget.setColumnCount(16)
+
+        # Spaltengrößen passen sich an Platzbedarf an
+        header = self.tableWidget.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        for i in range(0, 16):
+            header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        # Spalten beschriften
+        self.tableWidget.setHorizontalHeaderLabels(
+            ["Name", "B1", "B2", "B3", "B4", "G", "SP", "MP", "MP", "SP", "G", "B1", "B2", "B3",
+             "B4", "Name"])
+
+        # Tabelle wird beschrieben
+
+        for i in range(0, len(self.ergeb), 1):
+            self.tableWidget.setItem(i, 0, QTableWidgetItem(str(self.ergeb[i][0])))
+            self.tableWidget.setItem(i, 15, QTableWidgetItem(str(self.ergeb[i][15])))
+
+    def weiter(self):
+        if self.i > 4:
+            pass
+        else:
+            # Heim
+            self.tableWidget.setItem(self.i, self.j, QTableWidgetItem(str(self.ergeb[self.i][self.j])))
+            self.tableWidget.setItem(self.i + 1, self.j, QTableWidgetItem(str(self.ergeb[self.i + 1][self.j])))
+            self.Heim += self.ergeb[self.i][self.j] + self.ergeb[self.i + 1][self.j]
+
+            # Gast
+            self.tableWidget.setItem(self.i, self.j + 10, QTableWidgetItem(str(self.ergeb[self.i][self.j + 10])))
+            self.tableWidget.setItem(self.i + 1, self.j + 10,
+                                     QTableWidgetItem(str(self.ergeb[self.i + 1][self.j + 10])))
+            self.Gast += self.ergeb[self.i][self.j + 10] + self.ergeb[self.i + 1][self.j + 10]
+
+            COLORS = ['#053061', '#2166ac', '#4393c3', '#92c5de', '#d1e5f0', '#f7f7f7', '#fddbc7', '#f4a582', '#d6604d',
+                      '#b2182b', '#67001f']
+
+            if (self.ergeb[self.i][self.j] > self.ergeb[self.i][self.j + 10]):
+                self.tableWidget.item(self.i, self.j).setBackground(PyQt5.QtGui.QColor(255, 250, 205))
+            elif (self.ergeb[self.i][self.j] > self.ergeb[self.i][self.j + 10]):
+                self.tableWidget.item(self.i, self.j).setBackground(PyQt5.QtGui.QColor(240, 255, 255))
+                self.tableWidget.item(self.i, self.j + 10).setBackground(PyQt5.QtGui.QColor(240, 255, 255))
+            else:
+                self.tableWidget.item(self.i, self.j + 10).setBackground(PyQt5.QtGui.QColor(255, 250, 205))
+
+            if (self.ergeb[self.i + 1][self.j] > self.ergeb[self.i + 1][self.j + 10]):
+                self.tableWidget.item(self.i + 1, self.j).setBackground(PyQt5.QtGui.QColor(255, 250, 205))
+            elif (self.ergeb[self.i + 1][self.j] > self.ergeb[self.i + 1][self.j + 10]):
+                self.tableWidget.item(self.i + 1, self.j).setBackground(PyQt5.QtGui.QColor(240, 255, 255))
+                self.tableWidget.item(self.i + 1, self.j + 10).setBackground(PyQt5.QtGui.QColor(240, 255, 255))
+            else:
+                self.tableWidget.item(self.i + 1, self.j + 10).setBackground(PyQt5.QtGui.QColor(255, 250, 205))
+
+            # Gesamtholz Heim und Gast
+            self.tableWidget.setItem(6, 6, QTableWidgetItem(str(self.Heim)))
+            self.tableWidget.setItem(6, 9, QTableWidgetItem(str(self.Gast)))
+            self.tableWidget.setItem(6, 5, QTableWidgetItem(str(self.Heim - self.Gast)))
+
+            # Wenn alle Bahnen gespielt, Punkte anzeigen
+            if self.j == 4:
+                for k in range(1, 7):
+                    # Heim
+                    self.tableWidget.setItem(self.i, self.j + k, QTableWidgetItem(str(self.ergeb[self.i][self.j + k])))
+                    self.tableWidget.setItem(self.i + 1, self.j + k,
+                                             QTableWidgetItem(str(self.ergeb[self.i + 1][self.j + k])))
+                self.i += 2
+                self.j = 1
+            else:
+                self.j += 1
+
+    def Ausgabe(self):
+        return self.ergeb
 
 
 class Table(QWidget):
