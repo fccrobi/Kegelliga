@@ -14,10 +14,13 @@ from tabulate import tabulate
 
 
 # TODO Sven Kettenbeil       147   136   122   147   552     2     0     1     2   551   138   153   124   136  Oliver Heinold
+# sollte gefixt sein
+# TODO Spielplan stimmt im Moment nicht?
 # TODO Normalverteilung anhand von ALLEN Einzelergebnissen einer Liga berechnen
 
 
 # TODO Conditional Formatting einbauen für Gesamtergebnis
+# TODO Vorschau auf nächsten Spieltag
 
 # TODO Talent einbauen in Alterung, Stärkeanpassung einschätzen zwecks Realismus
 # TODO Stärkeänderung bissel abschwächen
@@ -77,7 +80,7 @@ class Liga:
         spielplan = self.spielplanGenerator(anzahl)
 
         self.menu(spielplan, spieltag_nr)
-        self.alterung()
+        # self.alterung()
 
         # aus Objekten zu Excel
         try:
@@ -222,9 +225,11 @@ class Liga:
     # Tabelle ausgeben
     def Tabelle(self, SpieltagNr):
 
-        self.Ligaa.sort(key=lambda Verein: Verein.Punkte, reverse=1)
+        Array = self.Ligaa.copy()
+
+        Array.sort(key=lambda Verein: Verein.Punkte, reverse=1)
         Kopie = []
-        for Verein in self.Ligaa:
+        for Verein in Array:
             try:
                 Kopie.append([Verein.Name, Verein.Punkte, Verein.S, Verein.U, Verein.N, Verein.MP, Verein.SP,
                               Verein.Schnitt / (SpieltagNr - 1)])
@@ -272,6 +277,20 @@ class Liga:
                                         "B4", "Name"]))
                 zeile += 10
                 wb.save()
+
+            try:
+                # falls kein nächstes Spieltag mehr vorhanden
+                print("  ")
+                print("Vorschau nächster Spieltag " + str(SpieltagNr + 1))
+                Array = []
+                for i in range(0, len(Spielplan[SpieltagNr - 1]), 1):
+                    Array.append([self.Ligaa[Spielplan[SpieltagNr][i][0] - 1].Name,
+                                  self.Ligaa[Spielplan[SpieltagNr][i][0] - 1].Punkte,
+                                  self.Ligaa[Spielplan[SpieltagNr][i][1] - 1].Name,
+                                  self.Ligaa[Spielplan[SpieltagNr][i][1] - 1].Punkte])
+                print(tabulate(Array))
+            except:
+                pass
             # except:
             #    print("Anzahl Teams Spielplan und Anzahl Teams Liga stimmen nicht überein")
             #   return
@@ -463,6 +482,7 @@ class Spiel:
         self.SpieltagNr = SpieltagNr
         self.ergeb = [[(0) for c in range(0, 16)] for r in range(0, 7)]
 
+
         print(team_a.Name + " - " + team_b.Name)
 
         # 2 zufälige Spieler nicht da
@@ -596,7 +616,7 @@ class SpielSlow(QWidget):
         self.Heim = 0
         self.Gast = 0
 
-        self.ergeb = Spiel(self.TeamA, self.TeamB, zeile, SpieltagNr).Ausgabe()
+        self.ergeb = Spiel(self.TeamA, self.TeamB, zeile, SpieltagNr - 1).Ausgabe()
 
         self.initUI()
 
@@ -658,7 +678,7 @@ class SpielSlow(QWidget):
 
             if (self.ergeb[self.i][self.j] > self.ergeb[self.i][self.j + 10]):
                 self.tableWidget.item(self.i, self.j).setBackground(PyQt5.QtGui.QColor(255, 250, 205))
-            elif (self.ergeb[self.i][self.j] > self.ergeb[self.i][self.j + 10]):
+            elif (self.ergeb[self.i][self.j] == self.ergeb[self.i][self.j + 10]):
                 self.tableWidget.item(self.i, self.j).setBackground(PyQt5.QtGui.QColor(240, 255, 255))
                 self.tableWidget.item(self.i, self.j + 10).setBackground(PyQt5.QtGui.QColor(240, 255, 255))
             else:
@@ -666,7 +686,7 @@ class SpielSlow(QWidget):
 
             if (self.ergeb[self.i + 1][self.j] > self.ergeb[self.i + 1][self.j + 10]):
                 self.tableWidget.item(self.i + 1, self.j).setBackground(PyQt5.QtGui.QColor(255, 250, 205))
-            elif (self.ergeb[self.i + 1][self.j] > self.ergeb[self.i + 1][self.j + 10]):
+            elif (self.ergeb[self.i + 1][self.j] == self.ergeb[self.i + 1][self.j + 10]):
                 self.tableWidget.item(self.i + 1, self.j).setBackground(PyQt5.QtGui.QColor(240, 255, 255))
                 self.tableWidget.item(self.i + 1, self.j + 10).setBackground(PyQt5.QtGui.QColor(240, 255, 255))
             else:
@@ -804,5 +824,5 @@ while 1:
         book = xlrd.open_workbook('Input.xlsx')
         sheet = book.sheet_by_name('Tabelle1')
         data = [[sheet.cell_value(r, c) for c in range(sheet.ncols)] for r in range(sheet.nrows)]
-        Anzahl = 4
+        Anzahl = 12
         Kreisoberliga = Liga(Anzahl, 1, "Kreisoberliga")
